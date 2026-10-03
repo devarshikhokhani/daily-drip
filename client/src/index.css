@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#faf7f2] text-[#24160f] antialiased selection:bg-amber-700 selection:text-white;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-[#22140c];
+  }
+}
+
+/* Warm café scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #f4ede3;
+}
+::-webkit-scrollbar-thumb {
+  background: #c8b6a3;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a38c76;
+}
+
+/* Warm, Light, Premium Café Utilities */
+.card-cafe {
+  background: #ffffff;
+  border: 1px solid #e8dfd5;
+  box-shadow: 0 4px 20px -2px rgba(66, 44, 32, 0.05);
+}
+
+.card-cafe-warm {
+  background: #fbf8f4;
+  border: 1px solid #e5dbcf;
+  box-shadow: 0 4px 16px -2px rgba(66, 44, 32, 0.04);
+}
+
+.card-cafe-highlight {
+  background: linear-gradient(135deg, #fffcf7 0%, #f6eee3 100%);
+  border: 1px solid #dfcfbc;
+  box-shadow: 0 8px 24px -4px rgba(180, 83, 9, 0.08);
+}
+
+.badge-caramel {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.badge-terracotta {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fed7aa;
+}
+
+.badge-sage {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-espresso {
+  background: #f4eee6;
+  color: #3b2214;
+  border: 1px solid #e4d7c8;
+}
+
+.btn-caramel {
+  background: linear-gradient(to right, #b45309, #d97706);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.25);
+  transition: all 0.2s ease;
+}
+.btn-caramel:hover {
+  background: linear-gradient(to right, #92400e, #b45309);
+  transform: translateY(-1px);
+}
+
+.btn-espresso {
+  background: #2b170c;
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+.btn-espresso:hover {
+  background: #3e2415;
+}
+
+/* Rising steam animation keyframes */
+@keyframes steamParticle {
+  0% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-18px) scaleX(1.3) translateX(5px);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateY(-36px) scaleX(1.8) translateX(-5px);
+    opacity: 0;
+  }
+}
+
+.steam-anim-1 {
+  animation: steamParticle 2.5s ease-out infinite;
+}
+.steam-anim-2 {
+  animation: steamParticle 2.8s ease-out infinite 0.7s;
+}
+.steam-anim-3 {
+  animation: steamParticle 2.2s ease-out infinite 1.4s;
+}
