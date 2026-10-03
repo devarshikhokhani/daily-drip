@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://daily-drip-6b7m.onrender.com/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

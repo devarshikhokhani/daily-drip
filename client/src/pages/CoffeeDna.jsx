@@ -60,19 +60,86 @@ export default function CoffeeDna({ onNavigate, dnaId = null, initialCreateData 
     }
   }, [dnaId, initialCreateData]);
 
+  const generateDeterministicDna = (id) => {
+    const rawId = (id || 'DNA-8492').toUpperCase();
+    const digits = rawId.replace(/\D/g, '') || '8492';
+    const num = parseInt(digits, 10);
+
+    const presets = [
+      {
+        personality: 'THE VELVET STRATEGIST',
+        drink: 'Smoked Hazelnut Oat Latte',
+        flavor: 'Velvety sweetness with smooth roasted hazelnut and warm oat microfoam',
+        strength: 68, sweetness: 65, creaminess: 85, chill: 20, energy: 75,
+        base: 'Latte', milk: 'Oat Milk (Barista Blend)', temp: 'Hot', sweetnessChoice: 'Normal (50%)'
+      },
+      {
+        personality: 'THE MIDNIGHT CATALYST',
+        drink: 'Nitro Cold Brew High Voltage',
+        flavor: 'Crisp, high-voltage cold brew rush with low acidity and dark chocolate hints',
+        strength: 92, sweetness: 25, creaminess: 15, chill: 90, energy: 95,
+        base: 'Cold Brew', milk: 'None', temp: 'Iced', sweetnessChoice: 'Less Sweet (25%)'
+      },
+      {
+        personality: 'THE ARTISAN PURIST',
+        drink: 'Double Origin Ristretto Espresso',
+        flavor: 'Bold, intense single-origin dark roast with bittersweet chocolate finish',
+        strength: 95, sweetness: 15, creaminess: 20, chill: 15, energy: 90,
+        base: 'Espresso', milk: 'None', temp: 'Hot', sweetnessChoice: 'No Sugar'
+      },
+      {
+        personality: 'THE COZY ACHIEVER',
+        drink: 'Classic Caramel Macchiato',
+        flavor: 'Velvety sweetness with smooth roasted notes and balanced caffeine lift',
+        strength: 70, sweetness: 60, creaminess: 80, chill: 25, energy: 70,
+        base: 'Cappuccino', milk: 'Whole Milk', temp: 'Hot', sweetnessChoice: 'Normal (50%)'
+      },
+      {
+        personality: 'THE SUNBURST OPTIMIST',
+        drink: 'Iced Vanilla Bean Blonde Latte',
+        flavor: 'Bright candied vanilla notes with playful warmth and refreshing ice infusion',
+        strength: 60, sweetness: 80, creaminess: 75, chill: 85, energy: 65,
+        base: 'Latte', milk: 'Almond Milk', temp: 'Iced', sweetnessChoice: 'Extra Sweet'
+      }
+    ];
+
+    const pick = presets[Math.abs(num) % presets.length];
+    return {
+      id: rawId,
+      drink_name: pick.drink,
+      personality_name: pick.personality,
+      flavor_profile: pick.flavor,
+      strength_pct: pick.strength,
+      sweetness_pct: pick.sweetness,
+      creaminess_pct: pick.creaminess,
+      chill_pct: pick.chill,
+      energy_pct: pick.energy,
+      customization: {
+        baseDrink: pick.base,
+        size: 'Large (480ml)',
+        milk: pick.milk,
+        sweetness: pick.sweetnessChoice,
+        temperature: pick.temp
+      },
+      created_at: new Date().toISOString()
+    };
+  };
+
   const fetchDnaById = async (id) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/coffee-dna/${id}`);
+      const res = await fetch(`/api/coffee-dna/${encodeURIComponent(id)}`);
       if (res.ok) {
         const data = await res.json();
-        loadDnaRecord(data);
-      } else {
-        fetchDefaultDna();
+        if (data && data.id) {
+          loadDnaRecord(data);
+          return;
+        }
       }
+      loadDnaRecord(generateDeterministicDna(id));
     } catch (e) {
-      console.error(e);
-      fetchDefaultDna();
+      console.warn('API fetch failed, loading generated profile for DNA:', id, e);
+      loadDnaRecord(generateDeterministicDna(id));
     } finally {
       setLoading(false);
     }
@@ -84,10 +151,14 @@ export default function CoffeeDna({ onNavigate, dnaId = null, initialCreateData 
       const res = await fetch('/api/coffee-dna/DNA-8492');
       if (res.ok) {
         const data = await res.json();
-        loadDnaRecord(data);
+        if (data && data.id) {
+          loadDnaRecord(data);
+          return;
+        }
       }
+      loadDnaRecord(generateDeterministicDna('DNA-8492'));
     } catch (e) {
-      console.error(e);
+      loadDnaRecord(generateDeterministicDna('DNA-8492'));
     } finally {
       setLoading(false);
     }
