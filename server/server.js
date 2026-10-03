@@ -35,6 +35,7 @@ const PORT = process.env.PORT || 5000;
 
 // Allow requests from the Vercel frontend (production) and localhost (development)
 const allowedOrigins = [
+  'https://daily-drip-evci.vercel.app',
   'https://daily-drip-theta.vercel.app',
   'http://localhost:5000',
   'http://localhost:5173',
@@ -87,7 +88,7 @@ app.get('/api/config', (req, res) => {
   const host = req.get('host');
   const protocol = req.protocol;
   const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
-  const publicAppUrl = process.env.PUBLIC_APP_URL || '';
+  const publicAppUrl = process.env.PUBLIC_APP_URL || 'https://daily-drip-evci.vercel.app';
 
   res.json({
     cafeName: 'DAILY DRIP',

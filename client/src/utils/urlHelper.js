@@ -10,15 +10,15 @@
  */
 
 // Build-time env var injected by Vite — set to the permanent production URL.
-// e.g. VITE_PUBLIC_APP_URL=https://daily-drip-theta.vercel.app
-const STATIC_PUBLIC_URL = (import.meta.env.VITE_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+// e.g. VITE_PUBLIC_APP_URL=https://daily-drip-evci.vercel.app
+const STATIC_PUBLIC_URL = (import.meta.env.VITE_PUBLIC_APP_URL || 'https://daily-drip-evci.vercel.app').replace(/\/+$/, '');
 
-let cachedNetworkOrigin = STATIC_PUBLIC_URL || ''; // pre-seed with build-time value if available
+let cachedNetworkOrigin = '';
 let configPromise = null;
 
 export async function fetchNetworkOrigin() {
   if (cachedNetworkOrigin) return cachedNetworkOrigin;
-  if (typeof window === 'undefined' || !window.location) return '';
+  if (typeof window === 'undefined' || !window.location) return STATIC_PUBLIC_URL;
 
   // If already on a non-localhost hostname/domain, that's already publicly reachable
   if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -35,13 +35,15 @@ export async function fetchNetworkOrigin() {
           cachedNetworkOrigin = cfg.publicAppUrl.replace(/\/+$/, '');
         } else if (cfg && cfg.networkUrl) {
           cachedNetworkOrigin = cfg.networkUrl;
+        } else if (STATIC_PUBLIC_URL) {
+          cachedNetworkOrigin = STATIC_PUBLIC_URL;
         } else {
           cachedNetworkOrigin = window.location.origin;
         }
         return cachedNetworkOrigin;
       })
       .catch(() => {
-        cachedNetworkOrigin = window.location.origin;
+        cachedNetworkOrigin = STATIC_PUBLIC_URL || window.location.origin;
         return cachedNetworkOrigin;
       });
   }
@@ -54,13 +56,14 @@ if (typeof window !== 'undefined' && window.location) {
   fetchNetworkOrigin();
 }
 
-
 export function getPublicOrigin() {
-  if (cachedNetworkOrigin) return cachedNetworkOrigin;
   if (typeof window !== 'undefined' && window.location) {
-    return window.location.origin;
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return window.location.origin;
+    }
   }
-  return '';
+  if (cachedNetworkOrigin) return cachedNetworkOrigin;
+  return STATIC_PUBLIC_URL || (typeof window !== 'undefined' && window.location ? window.location.origin : '');
 }
 
 export async function getPublicOriginAsync() {

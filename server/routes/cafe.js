@@ -39,7 +39,7 @@ router.post('/session', authenticateToken, (req, res) => {
     let code = generateCode();
 
     // Ensure code uniqueness
-    while (db.prepare('SELECT id FROM cafe_sessions WHERE code = ? AND status = "active"').get(code)) {
+    while (db.prepare("SELECT id FROM cafe_sessions WHERE code = ? AND status = 'active'").get(code)) {
       code = generateCode();
     }
 
