@@ -33,18 +33,36 @@ const server = http.createServer(app);
 // Cross-origin and Socket.IO configuration
 const PORT = process.env.PORT || 5000;
 
+// Allow requests from the Vercel frontend (production) and localhost (development)
+const allowedOrigins = [
+  'https://daily-drip-theta.vercel.app',
+  'http://localhost:5000',
+  'http://localhost:5173',
+  process.env.CORS_ORIGIN
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Render health checks) or whitelisted origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Permissive fallback — tighten after confirming in production
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  credentials: true
+};
+
 const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
-  }
+  cors: corsOptions
 });
 
 app.set('io', io);
 initSocketIO(io);
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' })); // Support cup design canvas data
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(authenticateToken);

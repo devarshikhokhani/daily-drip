@@ -27,8 +27,18 @@ export function SocketProvider({ children }) {
   };
 
   useEffect(() => {
-    // Connect to Socket.IO (uses relative origin so it works in both dev proxy and production)
-    const socketInstance = io(window.location.origin, {
+    // In production (Vercel), Socket.IO must connect directly to the Render backend
+    // because WebSockets cannot be proxied by Vercel rewrites.
+    // In local development, connect to localhost so the Vite dev proxy still works.
+    const isLocalDev =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1';
+
+    const socketUrl = isLocalDev
+      ? window.location.origin
+      : 'https://daily-drip-6b7m.onrender.com';
+
+    const socketInstance = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000
