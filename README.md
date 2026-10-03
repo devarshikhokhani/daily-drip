@@ -1,6 +1,9 @@
 # ☕ DAILY DRIP — FULL-STACK SMART CAFÉ WEB APPLICATION
 > **"Your Coffee. Your Way."**
 
+🔗 **Live Website (Vercel)**: [https://daily-drip-evci.vercel.app](https://daily-drip-evci.vercel.app)  
+📡 **Backend API (Render)**: [https://daily-drip-6b7m.onrender.com](https://daily-drip-6b7m.onrender.com)
+
 A complete, production-grade, full-stack specialty coffee management and customer experience platform built with React 18, Tailwind CSS, Express, Socket.IO, and persistent SQLite.
 
 ---
