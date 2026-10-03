@@ -3,12 +3,17 @@
  * Ensures all QR codes, share links, and café connection URLs
  * use the application's actual public/deployed origin.
  *
- * Production: Uses PUBLIC_APP_URL when configured or deployed origin.
- * Development (localhost): Automatically resolves the server's local network IP
- * (e.g. 10.x.x.x or 192.168.x.x) so mobile phones scanning the QR can connect seamlessly.
+ * Priority order for the origin:
+ *   1. VITE_PUBLIC_APP_URL env var (set at build time — always wins in production)
+ *   2. window.location.origin when already on a non-localhost hostname
+ *   3. LAN IP resolved from /api/config (localhost dev mode only)
  */
 
-let cachedNetworkOrigin = '';
+// Build-time env var injected by Vite — set to the permanent production URL.
+// e.g. VITE_PUBLIC_APP_URL=https://daily-drip-theta.vercel.app
+const STATIC_PUBLIC_URL = (import.meta.env.VITE_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+
+let cachedNetworkOrigin = STATIC_PUBLIC_URL || ''; // pre-seed with build-time value if available
 let configPromise = null;
 
 export async function fetchNetworkOrigin() {
@@ -48,6 +53,7 @@ export async function fetchNetworkOrigin() {
 if (typeof window !== 'undefined' && window.location) {
   fetchNetworkOrigin();
 }
+
 
 export function getPublicOrigin() {
   if (cachedNetworkOrigin) return cachedNetworkOrigin;

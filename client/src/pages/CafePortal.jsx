@@ -42,7 +42,7 @@ export default function CafePortal({ onNavigate, initialCode = '', initialMode =
   const [isConnectedToSession, setIsConnectedToSession] = useState(false);
   const [joinQrUrl, setJoinQrUrl] = useState('');
   const [joinFullUrl, setJoinFullUrl] = useState('');
-  const [qrLoading, setQrLoading] = useState(true);
+  const [qrLoading, setQrLoading] = useState(false);
 
   // Two-way shared coffee draft
   const [draft, setDraft] = useState({
@@ -482,16 +482,21 @@ export default function CafePortal({ onNavigate, initialCode = '', initialMode =
 
             {/* QR Code Container */}
             <div className="bg-[#faf7f2] p-5 rounded-2xl shadow-sm border border-[#e8dfd5] shrink-0 text-center">
-              {!qrLoading && joinQrUrl ? (
+              {joinQrUrl ? (
                 <img
                   src={joinQrUrl}
                   alt="Join Café Session QR Code"
                   className="w-44 h-44 mx-auto object-contain rounded-xl bg-white p-2 shadow-sm border border-[#e8dfd5]"
                 />
-              ) : (
+              ) : qrLoading ? (
                 <div className="w-44 h-44 flex flex-col items-center justify-center text-xs text-[#785b46] font-mono bg-white rounded-xl border border-[#e8dfd5]">
                   <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mb-2"></div>
                   Generating QR...
+                </div>
+              ) : (
+                <div className="w-44 h-44 flex flex-col items-center justify-center text-xs text-[#785b46] font-mono bg-white rounded-xl border border-[#e8dfd5]">
+                  <div className="text-2xl mb-1">☕</div>
+                  Start a session<br />to get QR
                 </div>
               )}
               <span className="text-[11px] font-mono text-[#24160f] font-bold block mt-2.5">
