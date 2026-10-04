@@ -99,29 +99,119 @@ export default function BuildCoffee({ onNavigate, initialPreset = null }) {
     onNavigate('cart');
   };
 
-  const handleGenerateDna = () => {
-    onNavigate('coffee-dna', {
-      createData: {
-        drinkName: `${size} ${baseCoffee}`,
-        customization: {
-          baseDrink: baseCoffee,
-          size,
-          milk,
-          sweetness,
-          temperature,
-          flavor,
-          addOns
-        }
-      }
-    });
+  const calculatePreviewDna = () => {
+    let strength = baseCoffee === 'Espresso' ? 95 : baseCoffee === 'Cold Brew' ? 88 : baseCoffee === 'Americano' ? 80 : baseCoffee === 'Cappuccino' ? 75 : 68;
+    if (addOns.includes('Extra Shot')) strength = Math.min(99, strength + 15);
+
+    let sweetnessVal = sweetness === 'No Sugar' ? 10 : sweetness === 'Less' ? 38 : sweetness === 'Extra' ? 90 : 60;
+    if (flavor && flavor !== 'None') sweetnessVal = Math.min(99, sweetnessVal + 8);
+    if (addOns.includes('Caramel') || addOns.includes('Chocolate') || addOns.includes('Whipped Cream')) {
+      sweetnessVal = Math.min(99, sweetnessVal + 6);
+    }
+
+    let creaminess = milk === 'None' || (baseCoffee === 'Espresso' && milk !== 'Oat' && milk !== 'Almond' && milk !== 'Soy')
+      ? 18
+      : milk === 'Oat'
+      ? 82
+      : milk === 'Almond'
+      ? 70
+      : milk === 'Soy'
+      ? 68
+      : 85;
+    if (addOns.includes('Whipped Cream')) creaminess = Math.min(99, creaminess + 12);
+
+    let chill = temperature === 'Iced' || baseCoffee === 'Cold Brew' ? 88 : temperature === 'Warm' ? 35 : 15;
+    let energy = addOns.includes('Extra Shot') ? 92 : baseCoffee === 'Cold Brew' || baseCoffee === 'Espresso' ? 90 : 72;
+
+    let personality = 'The Cozy Achiever';
+    let icon = '☕';
+
+    if (chill >= 70 && energy >= 80) {
+      personality = 'The Midnight Catalyst';
+      icon = '⚡';
+    } else if (chill >= 70) {
+      personality = 'The Polar Optimist';
+      icon = '❄️';
+    } else if (strength >= 80 && sweetnessVal <= 30) {
+      personality = 'The Artisan Purist';
+      icon = '👑';
+    } else if (creaminess >= 75 && sweetnessVal >= 60) {
+      personality = 'The Velvet Strategist';
+      icon = '✨';
+    } else if (sweetnessVal >= 70) {
+      personality = 'The Sunburst Optimist';
+      icon = '☀️';
+    } else if (strength >= 75) {
+      personality = 'The High-Voltage Craftsman';
+      icon = '🔥';
+    } else if (creaminess >= 70) {
+      personality = 'The Cozy Achiever';
+      icon = '☕';
+    }
+
+    return {
+      strength,
+      sweetness: sweetnessVal,
+      creaminess,
+      chill,
+      energy,
+      personality,
+      icon
+    };
   };
 
-  const previewDna = {
-    strength: baseCoffee === 'Espresso' ? 95 : addOns.includes('Extra Shot') ? 85 : 68,
-    sweetness: sweetness === 'No Sugar' ? 10 : sweetness === 'Less' ? 40 : sweetness === 'Extra' ? 90 : 65,
-    creaminess: milk === 'Regular' ? 85 : milk === 'Oat' ? 82 : milk === 'Almond' ? 70 : 30,
-    chill: temperature === 'Iced' ? 90 : temperature === 'Warm' ? 40 : 15,
-    energy: addOns.includes('Extra Shot') ? 92 : baseCoffee === 'Cold Brew' ? 88 : 74
+  const previewDna = calculatePreviewDna();
+
+  const handleGenerateDna = () => {
+    const formattedName = [
+      size && size !== 'undefined' ? size : 'Large',
+      flavor && flavor !== 'None' && flavor !== 'undefined' ? flavor : null,
+      baseCoffee && baseCoffee !== 'undefined' ? baseCoffee : 'Latte'
+    ].filter(Boolean).join(' ').trim() || 'Custom Specialty Coffee';
+
+    const generatedId = `DNA-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const customData = {
+      id: generatedId,
+      drinkName: formattedName,
+      price,
+      customization: {
+        baseDrink: baseCoffee,
+        baseCoffee,
+        size,
+        milk: milk === 'Regular' ? 'Whole Milk' : `${milk} Milk`,
+        sweetness: sweetness === 'Less' ? 'Less Sweet (25%)' : sweetness === 'Extra' ? 'Extra Sweet (100%)' : sweetness === 'No Sugar' ? 'No Sugar (0%)' : 'Normal (50%)',
+        temperature,
+        flavor,
+        addOns,
+        price,
+        strength: baseCoffee === 'Espresso' ? 'Intense' : addOns.includes('Extra Shot') ? 'Extra Strong' : 'Normal'
+      },
+      previewDna
+    };
+
+    try {
+      localStorage.setItem('dd_pending_coffee_dna', JSON.stringify(customData));
+      localStorage.setItem('dd_active_coffee_dna', JSON.stringify({
+        id: generatedId,
+        drink_name: formattedName,
+        personality_name: previewDna.personality.toUpperCase(),
+        flavor_profile: `${previewDna.personality} profile: customized ${formattedName} with ${milk} milk and ${temperature.toLowerCase()} extraction`,
+        strength_pct: previewDna.strength,
+        sweetness_pct: previewDna.sweetness,
+        creaminess_pct: previewDna.creaminess,
+        chill_pct: previewDna.chill,
+        energy_pct: previewDna.energy,
+        price,
+        customization: customData.customization,
+        created_at: new Date().toISOString()
+      }));
+    } catch (e) {}
+
+    onNavigate('coffee-dna', {
+      dnaId: generatedId,
+      createData: customData
+    });
   };
 
   return (
@@ -194,8 +284,8 @@ export default function BuildCoffee({ onNavigate, initialPreset = null }) {
                 <Sparkles className="w-3.5 h-3.5" />
                 Live Coffee DNA Radar
               </span>
-              <span className="text-[10px] text-[#785b46] font-mono">
-                {temperature === 'Iced' ? '❄️ The Polar Rush' : '☕ The Cozy Achiever'}
+              <span className="text-[10px] text-[#785b46] font-mono font-bold">
+                {previewDna.icon} {previewDna.personality}
               </span>
             </div>
 
@@ -466,6 +556,14 @@ export default function BuildCoffee({ onNavigate, initialPreset = null }) {
               <span className="text-2xl font-black text-[#b45309] font-mono sm:text-right">
                 ₹{price}
               </span>
+              <button
+                onClick={handleGenerateDna}
+                className="px-4 py-3 rounded-2xl border border-[#e8dfd5] bg-white hover:bg-[#faf7f2] text-[#b45309] text-sm font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                title="Generate Coffee DNA"
+              >
+                <Layers className="w-4 h-4" />
+                DNA
+              </button>
               <button
                 onClick={handleAddToCart}
                 className="flex-1 sm:flex-none px-6 py-3 rounded-2xl bg-[#b45309] hover:bg-[#92400e] text-white text-sm font-bold transition shadow-sm flex items-center justify-center gap-2"

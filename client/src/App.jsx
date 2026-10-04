@@ -115,10 +115,33 @@ function getRouteFromLocation() {
   } else if (path === '/magic' || path === '/coffee-magic') {
     return { page: 'coffee-magic', params: {} };
   } else if (path.startsWith('/coffee-dna/')) {
-    const id = path.replace('/coffee-dna/', '');
-    return { page: 'coffee-dna', params: { dnaId: id } };
+    const id = path.replace('/coffee-dna/', '').replace(/\/+$/, '');
+    return {
+      page: 'coffee-dna',
+      params: {
+        dnaId: id,
+        recipe: searchParams.get('recipe') || searchParams.get('r') || ''
+      }
+    };
+  } else if (path.startsWith('/dna/')) {
+    const id = path.replace('/dna/', '').replace(/\/+$/, '');
+    return {
+      page: 'coffee-dna',
+      params: {
+        dnaId: id,
+        recipe: searchParams.get('recipe') || searchParams.get('r') || ''
+      }
+    };
   } else if (path === '/coffee-dna' || path === '/dna') {
-    return { page: 'coffee-dna', params: {} };
+    const dnaId = searchParams.get('id') || searchParams.get('dnaId');
+    const recipe = searchParams.get('recipe') || searchParams.get('r');
+    return {
+      page: 'coffee-dna',
+      params: {
+        ...(dnaId ? { dnaId } : {}),
+        ...(recipe ? { recipe } : {})
+      }
+    };
   } else if (path === '/passport') {
     return { page: 'passport', params: {} };
   } else if (path.startsWith('/cafe/join/')) {
@@ -200,16 +223,20 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const navigateTo = (page, params = {}) => {
+  const navigateTo = (page, params = {}, extraData = null) => {
+    let resolvedParams = typeof params === 'object' && params !== null ? { ...params } : {};
+    if (extraData && typeof extraData === 'object') {
+      resolvedParams = { ...resolvedParams, createData: extraData };
+    }
     setCurrentPage(page);
-    setRouteParams(params);
+    setRouteParams(resolvedParams);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     let newUrl = '/';
     if (page === 'menu') newUrl = '/menu';
     else if (page === 'build-coffee') newUrl = '/build-coffee';
     else if (page === 'coffee-magic') newUrl = '/coffee-magic';
-    else if (page === 'coffee-dna') newUrl = params.dnaId ? `/coffee-dna/${params.dnaId}` : '/coffee-dna';
+    else if (page === 'coffee-dna') newUrl = resolvedParams.dnaId ? `/coffee-dna/${resolvedParams.dnaId}` : '/coffee-dna';
     else if (page === 'passport') newUrl = '/passport';
     else if (page === 'cafe') newUrl = params.code ? `/cafe/join?code=${params.code}` : '/cafe';
     else if (page === 'cart') newUrl = '/cart';
@@ -281,8 +308,9 @@ function AppContent() {
         {currentPage === 'coffee-dna' && (
           <CoffeeDna
             onNavigate={navigateTo}
-            dnaId={routeParams.dnaId}
-            initialCreateData={routeParams.createData}
+            dnaId={routeParams?.dnaId}
+            initialCreateData={routeParams?.createData}
+            recipeParam={routeParams?.recipe}
           />
         )}
         {currentPage === 'passport' && (
