@@ -146,8 +146,14 @@ export default function Orders({ onNavigate }) {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-lg font-mono font-black text-[#b45309]">#{ord.order_number}</span>
                     <span className="text-xs text-[#785b46]">{new Date(ord.created_at).toLocaleDateString()} at {new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    {ord.table_number && (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#faf7f2] text-[#5c4033] border border-[#e8dfd5]">Table {ord.table_number}</span>
+                    {ord.table_number ? (
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                        🪑 Table {ord.table_number} • Dine-In Reserved
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#faf7f2] text-[#785b46] border border-[#e8dfd5]">
+                        🚶 Counter Pick-up
+                      </span>
                     )}
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider font-mono self-start sm:self-auto ${statusStyle(ord.status)}`}>

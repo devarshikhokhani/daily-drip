@@ -123,7 +123,7 @@ export default function OrderDetail({ orderId, onNavigate }) {
               ORDER #{order.order_number}
             </h1>
             <p className="text-xs text-[#5c4033] mt-1">
-              Guest: <strong>{order.guest_name}</strong> • Table: <strong>{order.table_number ? `Table ${order.table_number}` : 'Counter'}</strong>
+              Guest: <strong>{order.guest_name}</strong> • Dining: <strong>{order.table_number ? `🪑 Reserved Table ${order.table_number}` : '🚶 Counter Pick-up'}</strong>
             </p>
           </div>
 

@@ -266,11 +266,12 @@ router.post('/', async (req, res) => {
 
     // Update table status to occupied if table number provided
     if (tableNumber) {
+      const parsedTableNum = parseInt(tableNumber, 10);
       db.prepare(`
         UPDATE cafe_tables
-        SET status = 'occupied', active_order_id = ?
+        SET status = 'occupied', active_order_id = ?, reserved_by = ?, notes = ?
         WHERE table_number = ?
-      `).run(orderId, parseInt(tableNumber, 10));
+      `).run(orderId, finalGuestName, `Order #${nextOrderNumber} (${finalGuestName})`, parsedTableNum);
     }
 
     // Add In-App Notification
@@ -307,7 +308,13 @@ router.post('/', async (req, res) => {
       }
       // Broadcast table update
       if (tableNumber) {
-        io.emit('table_status_changed', { tableNumber: parseInt(tableNumber, 10), status: 'occupied', activeOrderId: orderId });
+        io.emit('table_status_changed', {
+          tableNumber: parseInt(tableNumber, 10),
+          status: 'occupied',
+          activeOrderId: orderId,
+          reservedBy: finalGuestName,
+          notes: `Order #${nextOrderNumber} (${finalGuestName})`
+        });
       }
     }
 
@@ -418,7 +425,7 @@ router.patch('/:id/status', requireRole(['staff', 'admin']), (req, res) => {
     if (['completed', 'cancelled'].includes(status) && existing.table_number) {
       db.prepare(`
         UPDATE cafe_tables
-        SET status = 'available', active_order_id = NULL
+        SET status = 'available', active_order_id = NULL, reserved_by = NULL, notes = NULL
         WHERE table_number = ?
       `).run(existing.table_number);
     }

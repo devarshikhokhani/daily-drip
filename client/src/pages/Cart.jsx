@@ -28,10 +28,35 @@ export default function Cart({ onNavigate }) {
     itemCount
   } = useCart();
   const { user, isAuthenticated } = useAuth();
-  const { addToast } = useSocket();
+  const { socket, addToast } = useSocket();
 
   const [paymentMethod, setPaymentMethod] = useState('demo_card');
   const [submitting, setSubmitting] = useState(false);
+  const [tablesList, setTablesList] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/tables')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d)) setTablesList(d);
+      })
+      .catch(() => {});
+
+    if (socket) {
+      const handleTableUpdate = () => {
+        fetch('/api/tables')
+          .then(r => r.json())
+          .then(d => {
+            if (Array.isArray(d)) setTablesList(d);
+          })
+          .catch(() => {});
+      };
+      socket.on('table_status_changed', handleTableUpdate);
+      return () => {
+        socket.off('table_status_changed', handleTableUpdate);
+      };
+    }
+  }, [socket]);
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
@@ -41,7 +66,7 @@ export default function Cart({ onNavigate }) {
     try {
       const orderPayload = {
         items,
-        tableNumber: tableNumber ? parseInt(tableNumber, 10) : 7,
+        tableNumber: tableNumber ? parseInt(tableNumber, 10) : null,
         guestName: user?.name || 'Café Explorer',
         notes,
         paymentMethod
@@ -213,22 +238,48 @@ export default function Cart({ onNavigate }) {
 
             {/* Table Selection */}
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase text-[#b45309] font-bold block flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5" />
-                Select Café Table
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-mono uppercase text-[#b45309] font-bold block flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Select Café Table
+                </label>
+                <span className="text-[10px] text-stone-500 font-mono">Dine-in / Pickup</span>
+              </div>
               <select
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 className="w-full bg-[#faf7f2] border border-[#e8dfd5] rounded-xl px-4 py-2.5 text-xs font-bold text-[#24160f] focus:outline-none focus:border-[#b45309]"
               >
                 <option value="">Counter Pick-up (No Table)</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((t) => (
-                  <option key={t} value={t}>
-                    Table {t < 10 ? `0${t}` : t} {t === 7 ? '★ (Demo Session Table)' : ''}
-                  </option>
-                ))}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((tNum) => {
+                  const tInfo = tablesList.find(t => t.table_number === tNum);
+                  const isOcc = tInfo?.status === 'occupied';
+                  const isRes = tInfo?.status === 'reserved';
+                  const statusLabel = isOcc ? '🔴 Occupied' : isRes ? '🟡 Reserved' : '🟢 Available';
+                  const capLabel = tInfo?.capacity ? ` • ${tInfo.capacity}p` : '';
+                  return (
+                    <option key={tNum} value={tNum}>
+                      Table {tNum < 10 ? `0${tNum}` : tNum} ({statusLabel}{capLabel}) {tNum === 7 ? '★ (Demo Table)' : ''}
+                    </option>
+                  );
+                })}
               </select>
+
+              {/* Table reservation confirmation status badge */}
+              {tableNumber ? (
+                <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-1.5">
+                  <span className="text-sm">🪑</span>
+                  <div>
+                    <p className="font-bold">Table {tableNumber < 10 ? `0${tableNumber}` : tableNumber} will be reserved for you</p>
+                    <p className="text-[10px] text-amber-800">Your table and order details will be transmitted live to staff KDS and baristas upon checkout.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-xl bg-[#faf7f2] border border-[#e8dfd5] text-[11px] text-[#785b46] flex items-center gap-1.5">
+                  <span>🚶</span>
+                  <span>Direct counter pickup — pick up your coffee when called at the barista bar.</span>
+                </div>
+              )}
             </div>
 
             {/* Pricing breakdown */}

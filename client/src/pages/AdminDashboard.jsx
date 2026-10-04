@@ -20,6 +20,19 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
+const DEFAULT_TABLES = [
+  { table_number: 1, capacity: 2, status: 'available', notes: 'Window seat with garden view' },
+  { table_number: 2, capacity: 2, status: 'available', notes: 'Bar counter corner' },
+  { table_number: 3, capacity: 4, status: 'available', notes: 'Center booth with charging outlets' },
+  { table_number: 4, capacity: 4, status: 'available', notes: 'Oak wood square table' },
+  { table_number: 5, capacity: 6, status: 'reserved', reserved_by: 'Evening Book Club', notes: 'Reserved at 6 PM' },
+  { table_number: 6, capacity: 2, status: 'available', notes: 'Sunny quiet alcove' },
+  { table_number: 7, capacity: 4, status: 'occupied', reserved_by: 'Demo Session', notes: 'Table 07 active' },
+  { table_number: 8, capacity: 2, status: 'available', notes: 'Espresso bar stool' },
+  { table_number: 9, capacity: 4, status: 'available', notes: 'Patio umbrella table' },
+  { table_number: 10, capacity: 6, status: 'available', notes: 'Community work table' }
+];
+
 export default function AdminDashboard({ onNavigate }) {
   const { user, isAdmin } = useAuth();
   const { socket, addToast } = useSocket();
@@ -29,7 +42,7 @@ export default function AdminDashboard({ onNavigate }) {
   const [menuItems, setMenuItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [tables, setTables] = useState([]);
+  const [tables, setTables] = useState(DEFAULT_TABLES);
   const [usersList, setUsersList] = useState([]);
   const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,13 +74,42 @@ export default function AdminDashboard({ onNavigate }) {
       if (mRes.ok) setMenuItems(await mRes.json());
       if (cRes.ok) setCategories(await cRes.json());
       if (oRes.ok) setOrders(await oRes.json());
-      if (tRes.ok) setTables(await tRes.json());
+      if (tRes.ok) {
+        const tabData = await tRes.json();
+        if (Array.isArray(tabData) && tabData.length > 0) setTables(tabData);
+      }
       if (uRes.ok) setUsersList(await uRes.json());
       if (dRes.ok) setDeliveryOrders(await dRes.json());
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateTableStatus = async (tableNumber, newStatus, reservedBy = null) => {
+    const token = localStorage.getItem('dd_token');
+    try {
+      await fetch(`/api/tables/${tableNumber}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: newStatus,
+          reservedBy: newStatus === 'reserved' ? (reservedBy || 'VIP Guest') : (newStatus === 'occupied' ? 'Dine-In Guest' : null),
+          notes: newStatus === 'available' ? null : undefined
+        })
+      });
+      fetchAdminData();
+      addToast({
+        title: `Table ${tableNumber} Updated`,
+        message: `Status set to ${newStatus.toUpperCase()}`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -456,29 +498,101 @@ export default function AdminDashboard({ onNavigate }) {
       {/* TAB 4: TABLES */}
       {activeTab === 'tables' && (
         <div className="space-y-4">
-          <h3 className="text-xl font-bold text-[#24160f]">Café Floor Tables</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xl font-bold text-[#24160f]">Café Floor Tables & Reservations</h3>
+              <p className="text-xs text-stone-500">Live floor state and guest reservations management</p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-mono font-bold flex-wrap">
+              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                🟢 {tables.filter(t => t.status === 'available').length} Available
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                🟡 {tables.filter(t => t.status === 'reserved').length} Reserved
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200">
+                🔴 {tables.filter(t => t.status === 'occupied').length} Occupied
+              </span>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {tables.map(t => (
-              <div key={t.table_number} className="bg-white border border-[#e8dfd5] rounded-2xl p-4 shadow-md space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-mono font-bold text-sm text-[#24160f]">Table {t.table_number}</span>
-                  <span className="text-[10px] font-mono text-stone-400">Capacity: {t.capacity}p</span>
-                </div>
-                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
-                  t.status === 'occupied'
-                    ? 'bg-red-50 text-red-600 border border-red-200'
-                    : t.status === 'reserved'
-                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}>
-                  {t.status}
-                </span>
-                <p className="text-xs text-stone-500">{t.notes || 'General seating'}</p>
-                {t.activeOrder && (
-                  <div className="pt-2 border-t border-[#e8dfd5] text-[11px] text-amber-600">
-                    Active Order #{t.activeOrder.order_number} ({t.activeOrder.guest_name})
+              <div key={t.table_number} className="bg-white border border-[#e8dfd5] rounded-2xl p-4 shadow-md space-y-2.5 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-mono font-bold text-sm text-[#24160f]">Table {t.table_number < 10 ? `0${t.table_number}` : t.table_number}</span>
+                    <span className="text-[10px] font-mono text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded border border-stone-200">{t.capacity} Seats</span>
                   </div>
-                )}
+
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono ${
+                    t.status === 'occupied'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : t.status === 'reserved'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}>
+                    {t.status === 'occupied' ? '🔴 OCCUPIED' : t.status === 'reserved' ? '🟡 RESERVED' : '🟢 AVAILABLE'}
+                  </span>
+
+                  {/* Reservation Details */}
+                  {t.reserved_by && (
+                    <div className="text-[11px] font-semibold text-[#b45309] bg-amber-50/60 p-1.5 rounded-lg border border-amber-100">
+                      👤 {t.reserved_by}
+                    </div>
+                  )}
+
+                  <p className="text-xs text-stone-500">{t.notes || 'General floor seating'}</p>
+
+                  {t.activeOrder && (
+                    <div className="pt-2 border-t border-[#e8dfd5] text-[11px] text-amber-800 space-y-0.5">
+                      <p className="font-bold">Active Ticket #{t.activeOrder.order_number}</p>
+                      <p className="text-[10px] text-stone-600">{t.activeOrder.guest_name} • ₹{t.activeOrder.total_amount}</p>
+                      {t.activeOrder.items && (
+                        <p className="text-[10px] text-stone-500 italic truncate">
+                          {t.activeOrder.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Switcher Buttons */}
+                <div className="pt-2 border-t border-[#f0e8df] flex items-center gap-1 text-[10px] font-bold">
+                  <button
+                    onClick={() => handleUpdateTableStatus(t.table_number, 'available')}
+                    className={`flex-1 py-1 rounded-lg border transition ${
+                      t.status === 'available'
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-[#faf7f2] text-stone-600 border-[#e8dfd5] hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    Free
+                  </button>
+                  <button
+                    onClick={() => {
+                      const guest = prompt(`Enter reservation name for Table ${t.table_number}:`, t.reserved_by || 'VIP Guest');
+                      if (guest) handleUpdateTableStatus(t.table_number, 'reserved', guest);
+                    }}
+                    className={`flex-1 py-1 rounded-lg border transition ${
+                      t.status === 'reserved'
+                        ? 'bg-amber-600 text-white border-amber-600'
+                        : 'bg-[#faf7f2] text-stone-600 border-[#e8dfd5] hover:bg-amber-50 hover:text-amber-700'
+                    }`}
+                  >
+                    Reserve
+                  </button>
+                  <button
+                    onClick={() => handleUpdateTableStatus(t.table_number, 'occupied')}
+                    className={`flex-1 py-1 rounded-lg border transition ${
+                      t.status === 'occupied'
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-[#faf7f2] text-stone-600 border-[#e8dfd5] hover:bg-red-50 hover:text-red-700'
+                    }`}
+                  >
+                    Occupy
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -10,18 +10,38 @@ import {
   ShieldCheck,
   Bike,
   Package,
-  Sparkles
+  Sparkles,
+  User as UserIcon,
+  Edit3,
+  X,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import RushMeter from '../components/RushMeter';
+
+const DEFAULT_TABLES = [
+  { table_number: 1, capacity: 2, status: 'available', notes: 'Window seat with garden view' },
+  { table_number: 2, capacity: 2, status: 'available', notes: 'Bar counter corner with quick access' },
+  { table_number: 3, capacity: 4, status: 'available', notes: 'Center booth with charging outlets' },
+  { table_number: 4, capacity: 4, status: 'available', notes: 'Oak wood square table' },
+  { table_number: 5, capacity: 6, status: 'reserved', reserved_by: 'Evening Book Club', notes: 'Reserved at 6 PM' },
+  { table_number: 6, capacity: 2, status: 'available', notes: 'Sunny quiet alcove' },
+  { table_number: 7, capacity: 4, status: 'occupied', reserved_by: 'Demo Session', notes: 'Table 07 - Demo Session Active' },
+  { table_number: 8, capacity: 2, status: 'available', notes: 'Espresso bar stool' },
+  { table_number: 9, capacity: 4, status: 'available', notes: 'Patio outdoor umbrella table' },
+  { table_number: 10, capacity: 6, status: 'available', notes: 'Community work table' }
+];
 
 export default function StaffDashboard({ onNavigate }) {
   const { user, isStaff, demoLogin } = useAuth();
   const { socket, addToast } = useSocket();
 
   const [orders, setOrders] = useState([]);
-  const [tables, setTables] = useState([]);
+  const [tables, setTables] = useState(DEFAULT_TABLES);
+  const [editingTableModal, setEditingTableModal] = useState(null);
+  const [modalReservedBy, setModalReservedBy] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
   const [deliveryOrders, setDeliveryOrders] = useState([]);
   const [orderFilter, setOrderFilter] = useState('all'); // 'all' | 'cafe' | 'delivery'
   const [loading, setLoading] = useState(true);
@@ -45,7 +65,9 @@ export default function StaffDashboard({ onNavigate }) {
       }
       if (tabRes.ok) {
         const tabData = await tabRes.json();
-        setTables(Array.isArray(tabData) ? tabData : []);
+        if (Array.isArray(tabData) && tabData.length > 0) {
+          setTables(tabData);
+        }
       }
       if (delRes.ok) {
         const delData = await delRes.json();
@@ -101,7 +123,17 @@ export default function StaffDashboard({ onNavigate }) {
         fetchStaffData();
       });
 
-      socket.on('table_status_changed', () => {
+      socket.on('table_status_changed', (data) => {
+        if (data?.tableNumber) {
+          setTables(prev => prev.map(t => t.table_number === data.tableNumber ? { ...t, ...data } : t));
+          if (data.status === 'reserved') {
+            addToast({
+              title: `🪑 Table ${data.tableNumber} Reserved`,
+              message: `Reserved for ${data.reservedBy || 'Café Guest'}`,
+              type: 'info'
+            });
+          }
+        }
         fetchStaffData();
       });
 
@@ -172,9 +204,61 @@ export default function StaffDashboard({ onNavigate }) {
     }
   };
 
-  // Toggle Table Status
+  // Toggle Table Status (Cycle: Available -> Reserved -> Occupied -> Available)
   const handleToggleTable = async (tableNumber, currentStatus) => {
-    const nextStatus = currentStatus === 'available' ? 'occupied' : currentStatus === 'occupied' ? 'reserved' : 'available';
+    const nextStatus = currentStatus === 'available' ? 'reserved' : currentStatus === 'reserved' ? 'occupied' : 'available';
+    const token = localStorage.getItem('dd_token');
+    const defaultReservedBy = nextStatus === 'reserved' ? 'Barista Floor Reservation' : nextStatus === 'occupied' ? 'Dine-In Guest' : null;
+    try {
+      await fetch(`/api/tables/${tableNumber}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: nextStatus,
+          reservedBy: defaultReservedBy
+        })
+      });
+      fetchStaffData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Explicitly update reservation details from modal
+  const handleSaveTableReservation = async (e) => {
+    e.preventDefault();
+    if (!editingTableModal) return;
+    const token = localStorage.getItem('dd_token');
+    try {
+      await fetch(`/api/tables/${editingTableModal.table_number}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: 'reserved',
+          reservedBy: modalReservedBy || 'Café Guest',
+          notes: modalNotes || 'Reserved via Staff KDS'
+        })
+      });
+      setEditingTableModal(null);
+      fetchStaffData();
+      addToast({
+        title: `Table ${editingTableModal.table_number} Reserved`,
+        message: `Reserved for ${modalReservedBy || 'Café Guest'}`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Release table back to available
+  const handleFreeTable = async (tableNumber) => {
     const token = localStorage.getItem('dd_token');
     try {
       await fetch(`/api/tables/${tableNumber}/status`, {
@@ -183,11 +267,23 @@ export default function StaffDashboard({ onNavigate }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ status: nextStatus })
+        body: JSON.stringify({
+          status: 'available',
+          reservedBy: null,
+          notes: null
+        })
       });
+      if (editingTableModal?.table_number === tableNumber) {
+        setEditingTableModal(null);
+      }
       fetchStaffData();
-    } catch (e) {
-      console.error(e);
+      addToast({
+        title: `Table ${tableNumber} Freed`,
+        message: 'Table is now available for new guests',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -540,36 +636,195 @@ export default function StaffDashboard({ onNavigate }) {
       <RushMeter variant="banner" />
 
       {/* Tables Status Quick Overview */}
-      <div className="bg-white border border-[#e8dfd5] rounded-3xl p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-mono uppercase text-[#b45309] font-bold flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5" />
-            Interactive Café Tables Map
-          </span>
-          <span className="text-[10px] text-[#785b46]">Click any table to cycle status</span>
+      <div className="bg-white border border-[#e8dfd5] rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-mono uppercase text-[#b45309] font-bold flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" />
+              Interactive Café Tables & Reservations Map
+            </span>
+            <p className="text-[11px] text-[#785b46] mt-0.5">
+              Live floor occupancy • Click Cycle to change status or Edit to manage reservation details
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-mono font-bold flex-wrap">
+            <span className="px-2.5 py-1 rounded-full bg-[#edf6ed] text-[#1b5e20] border border-[#c8e6c9]">
+              🟢 {tables.filter(t => t.status === 'available').length} Free
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300">
+              🟡 {tables.filter(t => t.status === 'reserved').length} Reserved
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-800 border border-red-300">
+              🔴 {tables.filter(t => t.status === 'occupied').length} Occupied
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-2">
-          {tables.map((t) => (
-            <button
-              key={t.table_number}
-              onClick={() => handleToggleTable(t.table_number, t.status)}
-              className={`p-2.5 rounded-xl border text-center transition ${
-                t.status === 'occupied'
-                  ? 'bg-red-50 border-red-300 text-red-800'
-                  : t.status === 'reserved'
-                  ? 'bg-amber-50 border-amber-300 text-amber-800'
-                  : 'bg-[#edf6ed] border-[#c8e6c9] text-[#1b5e20]'
-              }`}
-            >
-              <span className="font-mono font-bold text-xs block">T-{t.table_number < 10 ? `0${t.table_number}` : t.table_number}</span>
-              <span className="text-[9px] uppercase font-semibold block mt-0.5">
-                {t.status === 'occupied' ? '🔴 OCCUPIED' : t.status === 'reserved' ? '🟡 RESERVED' : '🟢 FREE'}
-              </span>
-            </button>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-2.5">
+          {tables.map((t) => {
+            const isOcc = t.status === 'occupied';
+            const isRes = t.status === 'reserved';
+            const guestLabel = t.reserved_by || (t.activeOrder ? t.activeOrder.guest_name : null);
+            return (
+              <div
+                key={t.table_number}
+                className={`relative group rounded-2xl border p-2.5 flex flex-col justify-between transition shadow-xs hover:shadow-sm ${
+                  isOcc
+                    ? 'bg-red-50/80 border-red-200 text-red-900'
+                    : isRes
+                    ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                    : 'bg-[#edf6ed]/70 border-[#c8e6c9] text-[#1b5e20]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="font-mono font-black text-xs">
+                      T-{t.table_number < 10 ? `0${t.table_number}` : t.table_number}
+                    </span>
+                    <span className="text-[9px] font-mono px-1 rounded bg-white/70 font-semibold text-[#5c4033]">
+                      {t.capacity}p
+                    </span>
+                  </div>
+
+                  <span className={`text-[9px] font-bold uppercase tracking-wider block font-mono px-1.5 py-0.5 rounded-md text-center ${
+                    isOcc
+                      ? 'bg-red-200/60 text-red-800'
+                      : isRes
+                      ? 'bg-amber-200/60 text-amber-800'
+                      : 'bg-emerald-200/60 text-[#1b5e20]'
+                  }`}>
+                    {isOcc ? '🔴 Occupied' : isRes ? '🟡 Reserved' : '🟢 Free'}
+                  </span>
+
+                  {/* Reservation / Occupant info */}
+                  <div className="mt-1.5 min-h-[30px] text-[10px] leading-tight">
+                    {guestLabel ? (
+                      <p className="font-bold truncate text-[#24160f] flex items-center gap-0.5" title={guestLabel}>
+                        <UserIcon className="w-2.5 h-2.5 shrink-0 opacity-70" />
+                        <span className="truncate">{guestLabel}</span>
+                      </p>
+                    ) : (
+                      <p className="text-[#785b46]/70 italic text-[9px]">Open Table</p>
+                    )}
+                    {t.activeOrder && (
+                      <p className="font-mono text-[9px] text-[#b45309] font-bold truncate">
+                        #{t.activeOrder.order_number}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Action controls */}
+                <div className="mt-2 pt-1.5 border-t border-black/5 flex items-center justify-between gap-1">
+                  <button
+                    onClick={() => handleToggleTable(t.table_number, t.status)}
+                    title="Click to cycle status"
+                    className="flex-1 text-[9px] font-bold py-1 px-1 rounded-lg bg-white/80 hover:bg-white text-[#24160f] border border-black/10 transition text-center truncate"
+                  >
+                    Cycle
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingTableModal(t);
+                      setModalReservedBy(t.reserved_by || '');
+                      setModalNotes(t.notes || '');
+                    }}
+                    title="Manage Table Reservation"
+                    className="p-1 rounded-lg bg-white/80 hover:bg-white text-[#b45309] border border-black/10 transition"
+                  >
+                    <Edit3 className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
+
+      {/* Modal for Editing Table Reservation */}
+      {editingTableModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-[#e8dfd5] rounded-3xl max-w-sm w-full p-5 shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between border-b border-[#f0e8df] pb-3">
+              <div>
+                <h3 className="text-base font-bold text-[#24160f] flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-[#b45309]" />
+                  Table {editingTableModal.table_number} Reservation
+                </h3>
+                <p className="text-[11px] text-[#785b46]">
+                  Capacity: {editingTableModal.capacity} Seats • Status: {editingTableModal.status.toUpperCase()}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingTableModal(null)}
+                className="p-1.5 text-stone-400 hover:text-stone-700 rounded-full bg-[#faf7f2] border border-[#e8dfd5]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTableReservation} className="space-y-3">
+              <div>
+                <label className="text-xs font-mono uppercase text-[#785b46] font-bold block mb-1">
+                  Reserved For / Guest Name
+                </label>
+                <input
+                  type="text"
+                  value={modalReservedBy}
+                  onChange={(e) => setModalReservedBy(e.target.value)}
+                  placeholder="e.g. Ariana, Book Club, Dr. Sharma"
+                  className="w-full bg-[#faf7f2] border border-[#e8dfd5] rounded-xl px-3 py-2 text-xs text-[#24160f] focus:outline-none focus:border-[#b45309]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-mono uppercase text-[#785b46] font-bold block mb-1">
+                  Reservation Notes & Time
+                </label>
+                <textarea
+                  rows="2"
+                  value={modalNotes}
+                  onChange={(e) => setModalNotes(e.target.value)}
+                  placeholder="e.g. Arriving at 6:30 PM, window seating requested"
+                  className="w-full bg-[#faf7f2] border border-[#e8dfd5] rounded-xl px-3 py-2 text-xs text-[#24160f] focus:outline-none focus:border-[#b45309]"
+                />
+              </div>
+
+              {editingTableModal.activeOrder && (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 space-y-0.5">
+                  <p className="font-bold">Active Ticket #{editingTableModal.activeOrder.order_number}</p>
+                  <p>Guest: {editingTableModal.activeOrder.guest_name} • ₹{editingTableModal.activeOrder.total_amount}</p>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-between gap-2 border-t border-[#f0e8df]">
+                <button
+                  type="button"
+                  onClick={() => handleFreeTable(editingTableModal.table_number)}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-red-700 hover:bg-red-50 border border-red-200 transition"
+                >
+                  Clear Table
+                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTableModal(null)}
+                    className="px-3 py-2 rounded-xl text-xs text-stone-500 hover:text-stone-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#b45309] hover:bg-[#92400e] text-white font-bold text-xs shadow-xs"
+                  >
+                    Save Reservation
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 5-Column KDS Live Board */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

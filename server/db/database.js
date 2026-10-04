@@ -218,6 +218,23 @@ function initSchema() {
         insertFood.run(item[0], item[1], item[2], item[3], item[4], item[5], item[6], item[7]);
       }
     }
+
+    // Ensure default cafe tables 1-10 exist
+    const tableCount = db.prepare('SELECT COUNT(*) as count FROM cafe_tables').get()?.count || 0;
+    if (tableCount === 0) {
+      const insertTable = db.prepare('INSERT OR IGNORE INTO cafe_tables (table_number, capacity, status, reserved_by, notes) VALUES (?, ?, ?, ?, ?)');
+      insertTable.run(1, 2, 'available', null, 'Cozy window seat with garden view');
+      insertTable.run(2, 2, 'available', null, 'Bar counter corner with quick access');
+      insertTable.run(3, 4, 'available', null, 'Center booth with charging outlets');
+      insertTable.run(4, 4, 'available', null, 'Oak wood square table');
+      insertTable.run(5, 6, 'reserved', 'Evening Book Club', 'Reserved for Evening Book Club at 6 PM');
+      insertTable.run(6, 2, 'available', null, 'Sunny quiet alcove');
+      insertTable.run(7, 4, 'occupied', 'Table 07 Session', 'Table 07 - Demo Session Active');
+      insertTable.run(8, 2, 'available', null, 'Espresso bar stool');
+      insertTable.run(9, 4, 'available', null, 'Patio outdoor umbrella table');
+      insertTable.run(10, 6, 'available', null, 'Community work table with power strip');
+      console.log('✓ Default cafe tables 1-10 initialized');
+    }
   } catch (mErr) {
     console.error('Schema migration note:', mErr.message);
   }
