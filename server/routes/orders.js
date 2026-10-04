@@ -145,7 +145,13 @@ router.post('/', async (req, res) => {
       cupDesignData,
       cafeSessionId,
       coffeeDnaId,
-      paymentMethod = 'demo_pay'
+      paymentMethod = 'demo_pay',
+      orderType,
+      order_type,
+      deliveryAddress,
+      delivery_address,
+      deliveryFee = 0,
+      delivery_fee = 0
     } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -160,26 +166,28 @@ router.post('/', async (req, res) => {
     const validatedItems = [];
 
     for (const item of items) {
-      const basePrice = parseFloat(item.basePrice || item.price || 0);
+      const basePrice = parseFloat(item.basePrice !== undefined ? item.basePrice : (item.price || 0));
       let itemPrice = basePrice;
       const custom = item.customization || {};
 
-      // Dynamic pricing additions
-      if (custom.size && custom.size.includes('Medium')) itemPrice += 30;
-      if (custom.size && custom.size.includes('Large')) itemPrice += 60;
-      if (custom.milk && (custom.milk.includes('Oat') || custom.milk.includes('Almond'))) itemPrice += 35;
-      if (custom.milk && custom.milk.includes('Soy')) itemPrice += 25;
-      if (custom.flavor && !custom.flavor.includes('Pure') && !custom.flavor.includes('No Flavor')) itemPrice += 25;
-      if (Array.isArray(custom.addOns)) {
-        for (const addOn of custom.addOns) {
-          if (addOn.includes('Extra')) itemPrice += 40;
-          else if (addOn.includes('Whipped')) itemPrice += 30;
-          else if (addOn.includes('Caramel') || addOn.includes('Chocolate')) itemPrice += 20;
-          else if (addOn.includes('Cinnamon')) itemPrice += 10;
+      // Only add modifier charges if basePrice wasn't already calculated on the client
+      if (item.basePrice === undefined && item.price !== undefined) {
+        if (custom.size && custom.size.includes('Medium')) itemPrice += 30;
+        if (custom.size && custom.size.includes('Large')) itemPrice += 60;
+        if (custom.milk && (custom.milk.includes('Oat') || custom.milk.includes('Almond'))) itemPrice += 35;
+        if (custom.milk && custom.milk.includes('Soy')) itemPrice += 25;
+        if (custom.flavor && !custom.flavor.includes('Pure') && !custom.flavor.includes('No Flavor')) itemPrice += 25;
+        if (Array.isArray(custom.addOns)) {
+          for (const addOn of custom.addOns) {
+            if (addOn.includes('Extra')) itemPrice += 40;
+            else if (addOn.includes('Whipped')) itemPrice += 30;
+            else if (addOn.includes('Caramel') || addOn.includes('Chocolate')) itemPrice += 20;
+            else if (addOn.includes('Cinnamon')) itemPrice += 10;
+          }
         }
       }
 
-      const qty = parseInt(item.quantity || 1, 10);
+      const qty = Math.max(1, parseInt(item.quantity || 1, 10));
       const totalItemCost = itemPrice * qty;
       subtotal += totalItemCost;
 
@@ -193,8 +201,14 @@ router.post('/', async (req, res) => {
       });
     }
 
+    const resolvedOrderType = orderType || order_type || (deliveryAddress || delivery_address ? 'delivery' : 'dine_in');
+    const resolvedDeliveryAddr = deliveryAddress || delivery_address
+      ? (typeof (deliveryAddress || delivery_address) === 'string' ? (deliveryAddress || delivery_address) : JSON.stringify(deliveryAddress || delivery_address))
+      : null;
+    const resolvedDeliveryFee = parseFloat(deliveryFee || delivery_fee || 0);
+
     const tax = Math.round(subtotal * 0.05); // 5% GST
-    const totalAmount = subtotal + tax;
+    const totalAmount = subtotal + resolvedDeliveryFee + tax;
 
     // Generate unique order number (next integer from max)
     const maxOrder = db.prepare('SELECT MAX(order_number) as maxNum FROM orders').get();
@@ -211,8 +225,9 @@ router.post('/', async (req, res) => {
     const insertOrder = db.prepare(`
       INSERT INTO orders (
         order_number, user_id, guest_name, table_number, status, total_amount, payment_status,
-        payment_method, estimated_wait_min, cup_design_data, cafe_session_id, coffee_dna_id, notes
-      ) VALUES (?, ?, ?, ?, 'new', ?, 'paid', ?, ?, ?, ?, ?, ?)
+        payment_method, estimated_wait_min, cup_design_data, cafe_session_id, coffee_dna_id, notes,
+        order_type, delivery_address, delivery_fee, delivery_status, delivery_partner
+      ) VALUES (?, ?, ?, ?, 'new', ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const orderResult = insertOrder.run(
@@ -226,7 +241,12 @@ router.post('/', async (req, res) => {
       cupDesignData || null,
       cafeSessionId || null,
       coffeeDnaId || null,
-      notes || null
+      notes || null,
+      resolvedOrderType,
+      resolvedDeliveryAddr,
+      resolvedDeliveryFee,
+      resolvedOrderType === 'delivery' ? 'placed' : 'pending',
+      resolvedOrderType === 'delivery' ? 'Assigning courier partner...' : null
     );
 
     const orderId = orderResult.lastInsertRowid;
@@ -328,22 +348,26 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get user orders or all orders (Staff/Admin)
+// Get user orders or all orders (Staff/Admin/Guest)
 router.get('/', (req, res) => {
   try {
     const isStaffOrAdmin = req.user && (req.user.role === 'staff' || req.user.role === 'admin');
-    const { status, limit = 50 } = req.query;
+    const { status, limit = 50, guest_name } = req.query;
 
     let query = 'SELECT * FROM orders WHERE 1=1';
     const params = [];
 
     if (!isStaffOrAdmin) {
-      // Must be authenticated to see their own orders
-      if (!req.user) {
-        return res.status(401).json({ error: 'Please sign in to view your orders' });
+      if (req.user) {
+        query += ' AND (user_id = ? OR guest_name = ?)';
+        params.push(req.user.id, req.user.name);
+      } else if (guest_name) {
+        query += ' AND (guest_name = ? OR user_id IS NULL)';
+        params.push(guest_name);
+      } else {
+        // Allow unauthenticated guest users to view recent orders placed on the system
+        query += ' AND (user_id IS NULL OR created_at >= datetime("now", "-1 day"))';
       }
-      query += ' AND user_id = ?';
-      params.push(req.user.id);
     }
 
     if (status && status !== 'all') {
@@ -358,8 +382,15 @@ router.get('/', (req, res) => {
 
     const fullOrders = orders.map(ord => {
       const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(ord.id);
+      let parsedAddress = ord.delivery_address;
+      if (typeof ord.delivery_address === 'string') {
+        try {
+          parsedAddress = JSON.parse(ord.delivery_address);
+        } catch (_) {}
+      }
       return {
         ...ord,
+        delivery_address: parsedAddress,
         items: items.map(i => ({
           ...i,
           customization: i.customization ? JSON.parse(i.customization) : null

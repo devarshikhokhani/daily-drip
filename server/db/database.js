@@ -235,6 +235,57 @@ function initSchema() {
       insertTable.run(10, 6, 'available', null, 'Community work table with power strip');
       console.log('✓ Default cafe tables 1-10 initialized');
     }
+
+    // Ensure sample delivery order exists so delivery option has orders alongside cafe orders
+    const deliveryOrderCount = db.prepare("SELECT COUNT(*) as count FROM orders WHERE order_type = 'delivery'").get()?.count || 0;
+    if (deliveryOrderCount === 0) {
+      try {
+        const insOrder = db.prepare(`
+          INSERT INTO orders (
+            order_number, user_id, guest_name, table_number, status, total_amount, payment_status,
+            payment_method, estimated_wait_min, notes, order_type, delivery_address, delivery_fee,
+            delivery_status, delivery_partner, created_at
+          ) VALUES (?, NULL, 'Aria Chen', NULL, 'completed', 380, 'paid', 'cod', 0, 'Ring doorbell twice', 'delivery', ?, 40, 'delivered', 'Vikram S. (Electric Scooter)', datetime('now', '-1 hour'))
+        `);
+        const delivRes = insOrder.run(
+          104,
+          JSON.stringify({
+            name: 'Aria Chen',
+            phone: '9876543210',
+            address: '42 Lotus Boulevard, Apt 4B',
+            area: 'Indiranagar',
+            city: 'Bengaluru',
+            pinCode: '560038',
+            instructions: 'Ring doorbell twice'
+          })
+        );
+        const insItem = db.prepare(`
+          INSERT INTO order_items (order_id, menu_item_id, name, base_price, quantity, customization, item_total)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        insItem.run(
+          delivRes.lastInsertRowid,
+          3,
+          'Madagascar Vanilla Bean Latte',
+          210,
+          1,
+          JSON.stringify({ size: 'Large (480ml)', milk: 'Oat Milk' }),
+          210
+        );
+        insItem.run(
+          delivRes.lastInsertRowid,
+          205,
+          'Smoked Herb Chicken & Pesto Panini',
+          130,
+          1,
+          JSON.stringify({ heated: 'Warm' }),
+          130
+        );
+        console.log('✓ Sample delivered roastery order initialized');
+      } catch (delivErr) {
+        console.warn('Sample delivery order seed note:', delivErr.message);
+      }
+    }
   } catch (mErr) {
     console.error('Schema migration note:', mErr.message);
   }
